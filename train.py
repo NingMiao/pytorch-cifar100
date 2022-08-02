@@ -162,7 +162,7 @@ def run_wrapper(_):
             data_loader = pl.ParallelLoader(cifar100_training_loader, [device])
             data_loader = data_loader.per_device_loader(device)
         else:
-            data_loader=cifar100_train_loader
+            data_loader=cifar100_training_loader
         loss, time_use = train(epoch, net, optimizer, loss_function, data_loader, train_scheduler)
         if epoch%args.eval_every==0:
             if args.tpu_core_num>0:
