@@ -214,8 +214,10 @@ def get_training_dataloader(mean, std, batch_size=16, num_workers=2, shuffle=Tru
                            num_replicas=xm.xrt_world_size(),
                            rank=xm.get_ordinal(),
                            shuffle=True)
+        #cifar100_training_loader = DataLoader(
+        #    cifar100_training, num_workers=num_workers, batch_size=batch_size, sampler=train_sampler)
         cifar100_training_loader = DataLoader(
-            cifar100_training, num_workers=num_workers, batch_size=batch_size, sampler=train_sampler)
+            cifar100_training, num_workers=num_workers, batch_size=batch_size, shuffle=True)
         
         #device = xm.xla_device()
         #train_loader = pl.ParallelLoader(train_loader, [device])

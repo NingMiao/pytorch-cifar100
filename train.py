@@ -128,7 +128,10 @@ def run_wrapper(_):
         device = xm.xla_device()
         net = xmp.MpModelWrapper(net)
         net=net.to(device)
-        
+    
+    print('Number of model parameters: {}'.format(
+        sum([p.data.nelement() for p in net.parameters()])))
+    
     #data preprocessing:
     cifar100_training_loader = get_training_dataloader(
         settings.CIFAR100_TRAIN_MEAN,
@@ -209,6 +212,7 @@ if __name__ == '__main__':
         xmp.spawn(run_wrapper, args=(), nprocs=args.tpu_core_num, start_method='fork')
     else:
         run_wrapper(0)
+        
         
 def old():        
     if args.resume:
