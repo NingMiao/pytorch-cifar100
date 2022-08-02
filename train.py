@@ -129,8 +129,6 @@ def run_wrapper(_):
         net = xmp.MpModelWrapper(net)
         net=net.to(device)
     
-    print('Number of model parameters: {}'.format(
-        sum([p.data.nelement() for p in net.parameters()])))
     
     #data preprocessing:
     cifar100_training_loader = get_training_dataloader(
@@ -150,11 +148,7 @@ def run_wrapper(_):
         shuffle=False,
         tpu_core_num=args.tpu_core_num,
     )
-    
-    if args.tpu_core_num>0:
-        pass    
-    else:
-        data_loader=cifar100_training_loader
+            
     
     loss_function = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
@@ -167,12 +161,15 @@ def run_wrapper(_):
         if args.tpu_core_num>0:
             data_loader = pl.ParallelLoader(cifar100_training_loader, [device])
             data_loader = data_loader.per_device_loader(device)
+        else:
+            data_loader=cifar100_train_loader
         loss, time_use = train(epoch, net, optimizer, loss_function, data_loader, train_scheduler)
         if epoch%args.eval_every==0:
             if args.tpu_core_num>0:
                 data_loader = pl.ParallelLoader(cifar100_test_loader, [device])
                 data_loader = data_loader.per_device_loader(device)
-
+            else:
+                data_loader=cifar100_test_loader
             correct_rate = eval_training(epoch, net, data_loader)
             if args.tpu_core_num>0:
                 def reduce_fn(vals):
