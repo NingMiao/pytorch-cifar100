@@ -121,6 +121,7 @@ def eval_training(epoch, net, cifar100_test_loader):
 
 def run_wrapper(_):
     torch.manual_seed(1)
+    np.random.seed(1)
     
     net = get_network(args)#!
     if args.tpu_core_num>0:
@@ -148,7 +149,7 @@ def run_wrapper(_):
     )
     
     if args.tpu_core_num>0:
-        device = xm.xla_device()    
+        pass    
     else:
         data_loader=cifar100_training_loader
     
