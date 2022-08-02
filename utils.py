@@ -141,7 +141,7 @@ def get_network(args):
         from models.wideresidual import wideresnet
         net = wideresnet()
     elif args.net == 'wrn28':
-        from models.wideresidual import wideresnet
+        from models.wideresidual2 import wideresnet
         net = wideresnet(28)
     elif args.net == 'stochasticdepth18':
         from models.stochasticdepth import stochastic_depth_resnet18
@@ -178,15 +178,30 @@ def get_training_dataloader(mean, std, batch_size=16, num_workers=2, shuffle=Tru
         tpu_core_num: 
     Returns: train_data_loader:torch dataloader object
     """
-
+    
+    '''
     transform_train = transforms.Compose([
         #transforms.ToPILImage(),
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(15),
+        #transforms.RandomRotation(15),
         transforms.ToTensor(),
         transforms.Normalize(mean, std)
     ])
+    '''
+    import torch.nn.functional as F
+    normalize = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
+                                     std=[x/255.0 for x in [63.0, 62.1, 66.7]])
+    transform_train = transforms.Compose([
+        	transforms.ToTensor(),
+        	transforms.Lambda(lambda x: F.pad(x.unsqueeze(0),
+        						(4,4,4,4),mode='reflect').squeeze()),
+            transforms.ToPILImage(),
+            transforms.RandomCrop(32),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+            ])
     #cifar100_training = CIFAR100Train(path, transform=transform_train)
     cifar100_training = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform_train)
     
@@ -226,11 +241,18 @@ def get_test_dataloader(mean, std, batch_size=16, num_workers=2, shuffle=True, t
         shuffle: whether to shuffle
     Returns: cifar100_test_loader:torch dataloader object
     """
-
+    '''
     transform_test = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean, std)
     ])
+    '''
+    normalize = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
+                                     std=[x/255.0 for x in [63.0, 62.1, 66.7]])
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        normalize
+        ])
     #cifar100_test = CIFAR100Test(path, transform=transform_test)
     cifar100_test = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=transform_test)
     

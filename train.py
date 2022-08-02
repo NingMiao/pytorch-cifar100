@@ -26,13 +26,12 @@ from conf import settings
 from utils import get_network, get_training_dataloader, get_test_dataloader, WarmUpLR, \
     most_recent_folder, most_recent_weights, last_epoch, best_acc_weights
 
-def train(epoch, net, optimizer, loss_function, cifar100_training_loader, warmup_scheduler):
+def train(epoch, net, optimizer, loss_function, cifar100_training_loader,  train_scheduler):
 
     start = time.time()
     net.train()
         
     for batch_index, (images, labels) in enumerate(cifar100_training_loader):
-        
         
         if args.gpu:
             labels = labels.cuda()
@@ -46,11 +45,14 @@ def train(epoch, net, optimizer, loss_function, cifar100_training_loader, warmup
             xm.optimizer_step(optimizer)
         else:
             optimizer.step()
+        
+        train_scheduler.step()
+        
+        #n_iter = (epoch - 1) * len(cifar100_training_loader) + batch_index + 1
 
-        n_iter = (epoch - 1) * len(cifar100_training_loader) + batch_index + 1
-
-        last_layer = list(net.children())[-1]
-
+        #last_layer = list(net.children())[-1]
+        
+        
 
         #print('Training Epoch: {epoch} [{trained_samples}]\tLoss: {:0.4f}\tLR: {:0.6f}'.format(
         #    loss.item(),
@@ -60,17 +62,16 @@ def train(epoch, net, optimizer, loss_function, cifar100_training_loader, warmup
         #))
 
         #update training loss for each iteration
+        #if epoch <= args.warm:
+        #    warmup_scheduler.step()
 
-        if epoch <= args.warm:
-            warmup_scheduler.step()
-
-    for name, param in net.named_parameters():
-        layer, attr = os.path.splitext(name)
-        attr = attr[1:]
+    #for name, param in net.named_parameters():
+    #    layer, attr = os.path.splitext(name)
+    #    attr = attr[1:]
 
     finish = time.time()
 
-    return  finish - start
+    return  loss, finish - start
 
 @torch.no_grad()
 def eval_training(epoch, net, cifar100_test_loader):
@@ -91,9 +92,11 @@ def eval_training(epoch, net, cifar100_test_loader):
         #loss = loss_function(outputs, labels)
 
         #test_loss += loss.item()
+        
         _, preds = outputs.max(1)
-        correct += preds.eq(labels).sum()
+        correct += preds.eq(labels).sum()      
         l += labels.shape[0]
+    
     correct_rate = correct/ l
     
     return correct_rate
@@ -151,19 +154,16 @@ def run_wrapper(_):
     
     loss_function = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-    train_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=settings.MILESTONES, gamma=0.2) #learning rate decay
+    #train_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=settings.MILESTONES, gamma=0.2) #learning rate decay
+    train_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, settings.EPOCH*len(cifar100_training_loader))#!
     iter_per_epoch = len(cifar100_training_loader)
-    warmup_scheduler = WarmUpLR(optimizer, iter_per_epoch * args.warm)
-    
+    #warmup_scheduler = WarmUpLR(optimizer, iter_per_epoch * args.warm)
+    train_scheduler.step(0)
     for epoch in range(1, settings.EPOCH + 1):
-        if epoch > args.warm:
-            train_scheduler.step(epoch)
         if args.tpu_core_num>0:
             data_loader = pl.ParallelLoader(cifar100_training_loader, [device])
             data_loader = data_loader.per_device_loader(device)
-
-        time_use = train(epoch, net, optimizer, loss_function, data_loader, warmup_scheduler)
-        
+        loss, time_use = train(epoch, net, optimizer, loss_function, data_loader, train_scheduler)
         if epoch%args.eval_every==0:
             if args.tpu_core_num>0:
                 data_loader = pl.ParallelLoader(cifar100_test_loader, [device])
@@ -175,9 +175,9 @@ def run_wrapper(_):
                     return sum(vals) / len(vals)
                 correct_rate_reduced = xm.mesh_reduce('correct_rate', correct_rate, reduce_fn)
                 correct_rate=correct_rate_reduced
-                xm.master_print(f'test_acc={correct_rate}, time={time_use}')
+                xm.master_print(f"epoch={epoch}, test_acc={correct_rate}, time={time_use}, lr={        optimizer.param_groups[0]['lr']}")
             else:
-                print(f'test_acc={correct_rate}, time={time_use}')
+                print(f"test_acc={correct_rate}, time={time_use}")
             
 
 if __name__ == '__main__':
@@ -204,9 +204,10 @@ if __name__ == '__main__':
         import torch_xla.distributed.parallel_loader as pl
         import torch_xla.distributed.xla_multiprocessing as xmp
         import torch_xla.utils.utils as xu
-        
+        torch.set_default_tensor_type('torch.FloatTensor')
         xmp.spawn(run_wrapper, args=(), nprocs=args.tpu_core_num, start_method='fork')
-
+    else:
+        run_wrapper(0)
         
 def old():        
     if args.resume:
