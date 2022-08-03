@@ -30,9 +30,15 @@ def train(epoch, net, optimizer, loss_function, cifar100_training_loader,  train
 
     start = time.time()
     net.train()
-        
+    
+    
+    
     for batch_index, (images, labels) in enumerate(cifar100_training_loader):
-        
+        #print(torch.randint(0,1000,()))
+        #print(haha)
+        #print(images[2,1,:3,:2])
+        #print(labels[:5])
+        #continue
         if args.gpu:
             labels = labels.cuda()
             images = images.cuda()
@@ -40,6 +46,11 @@ def train(epoch, net, optimizer, loss_function, cifar100_training_loader,  train
         outputs = net(images)
         loss = loss_function(outputs, labels)
         loss.backward()
+        
+        #def reduce_fn(vals):
+        #    return sum(vals) / len(vals)
+        #loss_reduced = xm.mesh_reduce('loss', loss, reduce_fn)
+        #xm.master_print(f"loss={loss_reduced.data}")
         
         if args.tpu_core_num>0:
             xm.optimizer_step(optimizer)
@@ -82,6 +93,8 @@ def eval_training(epoch, net, cifar100_test_loader):
     test_loss = 0.0 # cost function error
     correct = 0.0
     l = 0.0
+    
+    
     for (images, labels) in cifar100_test_loader:
                 
         if args.gpu:
@@ -96,6 +109,8 @@ def eval_training(epoch, net, cifar100_test_loader):
         _, preds = outputs.max(1)
         correct += preds.eq(labels).sum()      
         l += labels.shape[0]
+        
+
     
     correct_rate = correct/ l
     
@@ -120,10 +135,11 @@ def eval_training(epoch, net, cifar100_test_loader):
     return correct.float() / len(cifar100_test_loader.dataset)
 
 def run_wrapper(_):
-    torch.manual_seed(1)
-    np.random.seed(1)
+    torch.manual_seed(124)
     
     net = get_network(args)#!
+    
+    
     if args.tpu_core_num>0:
         device = xm.xla_device()
         net = xmp.MpModelWrapper(net)
@@ -134,7 +150,7 @@ def run_wrapper(_):
     cifar100_training_loader = get_training_dataloader(
         settings.CIFAR100_TRAIN_MEAN,
         settings.CIFAR100_TRAIN_STD,
-        num_workers=4,
+        num_workers=1,#!
         batch_size=args.b,
         shuffle=True,
         tpu_core_num=args.tpu_core_num,
@@ -145,13 +161,13 @@ def run_wrapper(_):
         settings.CIFAR100_TRAIN_STD,
         num_workers=4,
         batch_size=args.b,
-        shuffle=False,
+        shuffle=True,
         tpu_core_num=args.tpu_core_num,
     )
             
     
     loss_function = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, nesterov=True, weight_decay=5e-4)
     #train_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=settings.MILESTONES, gamma=0.2) #learning rate decay
     train_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, settings.EPOCH*len(cifar100_training_loader))#!
     iter_per_epoch = len(cifar100_training_loader)
@@ -164,6 +180,8 @@ def run_wrapper(_):
         else:
             data_loader=cifar100_training_loader
         loss, time_use = train(epoch, net, optimizer, loss_function, data_loader, train_scheduler)
+        
+        
         if epoch%args.eval_every==0:
             if args.tpu_core_num>0:
                 data_loader = pl.ParallelLoader(cifar100_test_loader, [device])

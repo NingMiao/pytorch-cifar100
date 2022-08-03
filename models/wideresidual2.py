@@ -83,5 +83,5 @@ class WideResNet(nn.Module):
         return self.fc(out)
 
 def wideresnet(depth=28, widen_factor=10):
-    net = WideResNet(depth, 100, widen_factor, 0.3)
+    net = WideResNet(depth, 100, widen_factor, 0.0)
     return net
