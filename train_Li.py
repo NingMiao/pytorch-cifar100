@@ -56,7 +56,7 @@ def train(epoch, net, optimizer, loss_function, cifar100_training_loader,  train
             outputs = net(images_Li)
             
             optimizer.zero_grad()
-            outputs = net(images)
+            #outputs = net(images)
             loss_predictor = loss_function(outputs, labels)
             loss_Li_pre=(loss_predictor.detach()*logprob).mean()+loss_predictor.mean()
             entropy=entropy_every.mean(dim=0)
